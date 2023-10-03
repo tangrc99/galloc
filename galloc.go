@@ -4,14 +4,6 @@ import (
 	"unsafe"
 )
 
-type A struct {
-	Val int
-}
-
-//func upper2pow() int {
-//
-//}
-
 func New[T any]() *T {
 	var t *T
 	n := unsafe.Sizeof(*t)
@@ -20,5 +12,15 @@ func New[T any]() *T {
 	return t
 }
 
-func Free[T any](obj *T) {
+func Delete[T any](obj *T) {
+	fl.deallocate(addr(unsafe.Pointer(obj)))
+}
+
+func Malloc(n int) []byte {
+	ptr := fl.allocate(n)
+	return *(*[]byte)(unsafe.Pointer(ptr))
+}
+
+func Free(bytes []byte) {
+	fl.deallocate(addr(unsafe.Pointer(&bytes[0])))
 }

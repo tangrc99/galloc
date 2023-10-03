@@ -18,3 +18,7 @@ type pageHeader struct {
 func setPageHeader(ptr addr, n int) {
 	(*pageHeader)(unsafe.Pointer(ptr)).size = n
 }
+
+func getPageHeader(ptr addr) *pageHeader {
+	return (*pageHeader)(unsafe.Pointer(ptr - addr(pageHeaderSize)))
+}
