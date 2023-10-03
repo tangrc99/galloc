@@ -3,10 +3,9 @@ package galloc
 import "unsafe"
 
 const maxMapSize = 0xFFFFFFFF
-const pageHeaderSize = 10
+const pageHeaderSize = int(unsafe.Sizeof(pageHeader{}))
 
 type Page struct {
-	id      uint64
 	dataRef []byte
 	data    *[maxMapSize]byte
 	size    int
@@ -14,9 +13,8 @@ type Page struct {
 
 type pageHeader struct {
 	size int // 析构的时候用来确认大小
-
 }
 
-func getPageHeader(pg *Page) *pageHeader {
-	return (*pageHeader)(unsafe.Pointer(&pg.dataRef[0]))
+func setPageHeader(ptr addr, n int) {
+	(*pageHeader)(unsafe.Pointer(ptr)).size = n
 }
