@@ -34,13 +34,23 @@ func TestAllocate(t *testing.T) {
 }
 
 func TestFree(t *testing.T) {
-	a1 := fl.allocate(4096 - 8)
-	a2 := fl.allocate(4096 - 8)
-	a3 := fl.allocate(4096 - 8)
-	a4 := fl.allocate(4096 - 8)
+	a1 := fl.allocate(int(float64(allocStep)*1.5) - pageHeaderSize)
+	a2 := fl.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
+
 	fl.deallocate(a1)
+	fl.deallocate(a2)
+
+}
+
+func TestFree2(t *testing.T) {
+	a1 := fl.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
+	a2 := fl.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
+	a3 := fl.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
+	a4 := fl.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
+
 	fl.deallocate(a2)
 	fl.deallocate(a3)
 	fl.deallocate(a4)
+	fl.deallocate(a1)
 
 }

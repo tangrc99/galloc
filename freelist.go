@@ -10,22 +10,21 @@ import (
 type spanSet map[addr]struct{}
 type addr uintptr
 
-const allocPages = 128
+const allocPages = 1
 const allocStep = uint64(0x20000) // 128 kb
 
 func errInvalidPointer(ptr addr) error {
-	return errors.New(fmt.Sprintf("Invalid Pointer: %p", ptr))
+	return errors.New(fmt.Sprintf("Invalid Pointer: %x", ptr))
 }
 
 //const allocStep = uint64(4096)
 
 type freelist struct {
-	ids         []addr
-	freeMap     map[uint64]spanSet
-	forwardMap  map[addr]uint64
-	backwardMap map[addr]uint64
-	pages       map[addr]Page // 从系统中分配的
-	allocs      map[addr]struct{}
+	freeMap     map[uint64]spanSet // 长度 - 地址集合
+	forwardMap  map[addr]uint64    // 正向查找
+	backwardMap map[addr]uint64    // 反向查找
+	pages       map[addr]Page      // 从系统中分配的
+	allocs      map[addr]struct{}  // 分配给用户的内存
 }
 
 var fl *freelist
@@ -36,6 +35,7 @@ func init() {
 	fl.forwardMap = make(map[addr]uint64)
 	fl.backwardMap = make(map[addr]uint64)
 	fl.pages = make(map[addr]Page)
+	fl.allocs = make(map[addr]struct{})
 
 	// startup memory pool
 }
@@ -46,7 +46,7 @@ func (f *freelist) allocate(n int) addr {
 	if spans, ok := f.freeMap[uint64(nt)]; ok {
 		for span := range spans {
 			// 删除对应 page 的记录
-			delete(spans, span)
+			f.delSpan(span, uint64(nt))
 			// TODO: 记录本次分配
 			println("malloc proper size")
 			setPageHeader(span, nt)
@@ -72,7 +72,7 @@ func (f *freelist) allocate(n int) addr {
 		}
 	}
 	// 使用 mmap 分配内存
-	npg := uint64(math.Ceil(float64(uint64(nt) / allocStep)))
+	npg := uint64(math.Ceil(float64(nt) / float64(allocStep)))
 	err, p := mmap(int(npg * allocStep))
 	if err != nil {
 		return 0
@@ -92,11 +92,23 @@ func (f *freelist) deallocate(ptr addr) {
 	if _, exist := f.allocs[start]; !exist {
 		panic(errInvalidPointer(ptr))
 	}
+	delete(f.allocs, start)
 	// merge existing spans
 	f.mergeSpans(start, header.size)
-	// try munmap pages
+
 	if len(f.pages) > allocPages {
-		// TODO: release pages
+		for span, pg := range f.pages {
+			if sz := f.forwardMap[span]; sz >= uint64(pg.size) {
+				f.delSpan(span, sz)
+				if sz > allocStep {
+					f.addSpan(span+addr(allocStep), sz-allocStep)
+				}
+				println("munmap")
+				_ = munmap(pg.dataRef)
+				delete(f.pages, span)
+				return
+			}
+		}
 	}
 }
 
@@ -109,8 +121,8 @@ func (f *freelist) mergeSpans(span addr, size int) {
 	newStart := span
 	newSize := uint64(size)
 
-	if mergeWithPrev {
-		//merge with previous span
+	if _, exist := f.pages[span]; mergeWithPrev && !exist {
+		//merge with previous span, when start is not a page
 		start := prev + 1 - addr(preSize)
 		f.delSpan(start, preSize)
 

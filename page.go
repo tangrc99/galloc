@@ -12,7 +12,8 @@ type Page struct {
 }
 
 type pageHeader struct {
-	size int // 析构的时候用来确认大小
+	size   int // 析构的时候用来确认大小
+	nShard int // shard 序号
 }
 
 func setPageHeader(ptr addr, n int) {
