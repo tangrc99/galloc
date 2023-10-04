@@ -47,10 +47,8 @@ func TestFree2(t *testing.T) {
 	a2 := fl.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
 	a3 := fl.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
 	a4 := fl.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
-
 	fl.deallocate(a2)
 	fl.deallocate(a3)
 	fl.deallocate(a4)
 	fl.deallocate(a1)
-
 }

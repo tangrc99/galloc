@@ -10,14 +10,20 @@ import (
 type spanSet map[addr]struct{}
 type addr uintptr
 
-const allocPages = 1
-const allocStep = uint64(0x20000) // 128 kb
+const (
+	// memoryPageSize 内存页大小
+	memoryPageSize = 0x1000
+	// maxAllocPages 是常驻的最大页数
+	maxAllocPages = 1
+	// startupPages 是初始化时分配的页数
+	startupPages = 32
+	// allocStep 是最小分配单元
+	allocStep = uint64(0x20000) // 128 kb
+)
 
 func errInvalidPointer(ptr addr) error {
 	return errors.New(fmt.Sprintf("Invalid Pointer: %x", ptr))
 }
-
-//const allocStep = uint64(4096)
 
 type freelist struct {
 	freeMap     map[uint64]spanSet // 长度 - 地址集合
@@ -96,7 +102,7 @@ func (f *freelist) deallocate(ptr addr) {
 	// merge existing spans
 	f.mergeSpans(start, header.size)
 
-	if len(f.pages) > allocPages {
+	if len(f.pages) > maxAllocPages {
 		for span, pg := range f.pages {
 			if sz := f.forwardMap[span]; sz >= uint64(pg.size) {
 				f.delSpan(span, sz)
