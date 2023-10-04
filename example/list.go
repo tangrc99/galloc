@@ -14,8 +14,6 @@ type listNode struct {
 func newListNode(val any) *listNode {
 	ptr := galloc.New[listNode]()
 	ptr.Value = val
-	ptr.prev = 0
-	ptr.next = 0
 	return ptr
 }
 

@@ -14,16 +14,6 @@ type A struct {
 func TestGalloc(t *testing.T) {
 	aa := New[A]()
 	aa.Val = 1
-	println(aa)
-
-	println(aa.Val)
-	//Delete[A](aa)
-
-	//base := uintptr(unsafe.Pointer(aa)) - uintptr(pageHeaderSize)
-	//bptr := (*pageHeader)(unsafe.Pointer(base))
-	//fmt.Printf("%x\n", base)
-	//println(bptr.size)
-
 	Delete(aa)
 }
 
@@ -35,16 +25,13 @@ func TestAllocate(t *testing.T) {
 
 	ptr = fl.allocate(1024)
 	fl.deallocate(ptr)
-
 }
 
 func TestFree(t *testing.T) {
 	a1 := fl.allocate(int(float64(allocStep)*1.5) - pageHeaderSize)
 	a2 := fl.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
-
 	fl.deallocate(a1)
 	fl.deallocate(a2)
-
 }
 
 func TestFree2(t *testing.T) {
@@ -66,4 +53,34 @@ func TestBZero(t *testing.T) {
 		assert.Equal(t, uint8(0), b[i])
 	}
 	Free(b)
+}
+
+func BenchmarkMalloc(b *testing.B) {
+	s := Malloc(1024)
+	Free(s)
+
+	nTest := 10000
+	b.ResetTimer()
+	for i := 0; i < nTest; i++ {
+		s := Malloc(1024)
+		Free(s)
+	}
+}
+
+var lk spinLock
+
+func BenchmarkMallocWithSpinLock(b *testing.B) {
+	s := Malloc(1024)
+	Free(s)
+
+	nTest := 10000
+	b.ResetTimer()
+	for i := 0; i < nTest; i++ {
+		lk.Lock()
+		s := Malloc(1024)
+		lk.Unlock()
+		lk.Lock()
+		Free(s)
+		lk.Unlock()
+	}
 }

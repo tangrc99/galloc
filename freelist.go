@@ -14,7 +14,7 @@ const (
 	// memoryPageSize 内存页大小
 	memoryPageSize = 0x1000
 	// maxAllocPages 是常驻的最大页数
-	maxAllocPages = 1
+	maxAllocPages = 128
 	// startupPages 是初始化时分配的页数
 	startupPages = 32
 	// allocStep 是最小分配单元
@@ -53,7 +53,7 @@ func (f *freelist) allocate(n int) addr {
 		for span := range spans {
 			// 删除对应 page 的记录
 			f.delSpan(span, uint64(nt))
-			println("malloc proper size")
+			//	println("malloc proper size")
 			setPageHeader(span, nt)
 			f.allocs[span] = struct{}{}
 			return span + addr(pageHeaderSize)
@@ -70,7 +70,7 @@ func (f *freelist) allocate(n int) addr {
 			remain := size - uint64(nt)
 			// add remain span
 			f.addSpan(span+addr(nt), remain)
-			println("malloc larger size")
+			//		println("malloc larger size")
 			setPageHeader(span, nt)
 			f.allocs[span] = struct{}{}
 			return span + addr(pageHeaderSize)
@@ -85,7 +85,7 @@ func (f *freelist) allocate(n int) addr {
 	base := addr(unsafe.Pointer(&p.dataRef[0]))
 	f.pages[base] = p
 	f.addSpan(base+addr(nt), uint64(p.size-nt))
-	println("malloc new region")
+	//	println("malloc new region")
 	setPageHeader(base, nt)
 	f.allocs[base] = struct{}{}
 	return base + addr(pageHeaderSize)
