@@ -43,17 +43,16 @@ func init() {
 	fl.pages = make(map[addr]Page)
 	fl.allocs = make(map[addr]struct{})
 
-	// startup memory pool
+	// TODO: startup memory pool
 }
 
 func (f *freelist) allocate(n int) addr {
-	nt := n + pageHeaderSize
+	nt := pow2upper(n + pageHeaderSize)
 	// 先寻找是否有对应大小的 page
 	if spans, ok := f.freeMap[uint64(nt)]; ok {
 		for span := range spans {
 			// 删除对应 page 的记录
 			f.delSpan(span, uint64(nt))
-			// TODO: 记录本次分配
 			println("malloc proper size")
 			setPageHeader(span, nt)
 			f.allocs[span] = struct{}{}

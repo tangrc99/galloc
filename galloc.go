@@ -1,14 +1,15 @@
 package galloc
 
 import (
+	"github.com/tmthrgd/go-memset"
 	"unsafe"
 )
 
 func New[T any]() *T {
 	var t *T
 	n := unsafe.Sizeof(*t)
-	// TODO: 这里要对齐为 pow2
 	t = (*T)(unsafe.Pointer(fl.allocate(int(n))))
+	memset.Memset((*[maxMapSize]byte)(unsafe.Pointer(t))[0:n], 0)
 	return t
 }
 
@@ -18,7 +19,7 @@ func Delete[T any](obj *T) {
 
 func Malloc(n int) []byte {
 	ptr := fl.allocate(n)
-	return *(*[]byte)(unsafe.Pointer(ptr))
+	return (*[maxMapSize]byte)(unsafe.Pointer(ptr))[0:n]
 }
 
 func Free(bytes []byte) {
