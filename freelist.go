@@ -12,13 +12,13 @@ type addr uintptr
 
 const (
 	// memoryPageSize 内存页大小
-	memoryPageSize = 0x1000
+	memoryPageSize = 0x1000 //4kb
+	// allocStep 是最小分配单元
+	allocStep = uint64(32 * memoryPageSize) // 128kb
 	// maxAllocPages 是常驻的最大页数
 	maxAllocPages = 128
 	// startupPages 是初始化时分配的页数
 	startupPages = 0
-	// allocStep 是最小分配单元
-	allocStep = uint64(0x20000) // 128 kb
 )
 
 func errInvalidPointer(ptr addr) error {
@@ -30,7 +30,7 @@ type freelist struct {
 	forwardMap  map[addr]uint64    // 正向查找
 	backwardMap map[addr]uint64    // 反向查找
 	pages       map[addr]Page      // 从系统中分配的
-	//	allocs map[addr]struct{} // 分配给用户的内存
+	allocs      map[addr]struct{}  // 分配给用户的内存
 }
 
 var fl *freelist
@@ -41,7 +41,7 @@ func init() {
 	fl.forwardMap = make(map[addr]uint64)
 	fl.backwardMap = make(map[addr]uint64)
 	fl.pages = make(map[addr]Page)
-	//fl.allocs = make(map[addr]struct{})
+	fl.allocs = make(map[addr]struct{})
 
 	// startup memory pool
 	for i := 0; i < startupPages; i++ {
@@ -62,7 +62,7 @@ func (f *freelist) allocate(n int) addr {
 			// 删除对应 page 的记录
 			f.delSpan(span, uint64(nt))
 			setPageHeader(span, nt)
-			//f.allocs[span] = struct{}{}
+			f.allocs[span] = struct{}{}
 			return span + addr(pageHeaderSize)
 		}
 	}
@@ -78,7 +78,7 @@ func (f *freelist) allocate(n int) addr {
 			// add remain span
 			f.addSpan(span+addr(nt), remain)
 			setPageHeader(span, nt)
-			//f.allocs[span] = struct{}{}
+			f.allocs[span] = struct{}{}
 			return span + addr(pageHeaderSize)
 		}
 	}
@@ -92,18 +92,17 @@ func (f *freelist) allocate(n int) addr {
 	f.pages[base] = p
 	f.addSpan(base+addr(nt), uint64(p.size-nt))
 	setPageHeader(base, nt)
-	//	f.allocs[base] = struct{}{}
+	f.allocs[base] = struct{}{}
 	return base + addr(pageHeaderSize)
 }
 
 func (f *freelist) deallocate(ptr addr) {
 	header := getPageHeader(ptr)
 	start := addr(unsafe.Pointer(header))
-	// TODO: Check user ptr
-	//if _, exist := f.allocs[start]; !exist {
-	//	panic(errInvalidPointer(ptr))
-	//}
-	//delete(f.allocs, start)
+	if _, exist := f.allocs[start]; !exist {
+		panic(errInvalidPointer(ptr))
+	}
+	delete(f.allocs, start)
 	// merge existing spans
 	f.mergeSpans(start, header.size)
 

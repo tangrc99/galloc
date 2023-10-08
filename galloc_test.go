@@ -1,23 +1,28 @@
 package galloc
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/tmthrgd/go-memset"
+	"runtime"
 	"testing"
+	"time"
 	"unsafe"
 )
 
-type A struct {
-	Val int
-}
-
 func TestGalloc(t *testing.T) {
+	type A struct {
+		Val int
+	}
 	aa := New[A]()
 	aa.Val = 1
 	Delete(aa)
 }
 
 func TestAllocate(t *testing.T) {
+	type A struct {
+		Val int
+	}
 	ptr := fl.allocate(1024)
 	aptr := (*A)(unsafe.Pointer(ptr))
 	aptr.Val = 1
@@ -83,4 +88,34 @@ func BenchmarkMallocWithSpinLock(b *testing.B) {
 		Free(s)
 		lk.Unlock()
 	}
+}
+
+func TestNew(t *testing.T) {
+
+	type A struct {
+		a int
+	}
+	l := make([]*A, 100000)
+
+	for i := range l {
+		l[i] = New[A]()
+	}
+	s := time.Now()
+	runtime.GC()
+	fmt.Printf("galloc.New() gc time: %dus\n", time.Since(s).Microseconds())
+}
+
+func TestNew2(t *testing.T) {
+	type A struct {
+		a int
+	}
+	l := make([]*A, 100000)
+
+	for i := range l {
+		l[i] = new(A)
+	}
+
+	s := time.Now()
+	runtime.GC()
+	fmt.Printf("new() gc time: %dus\n", time.Since(s).Microseconds())
 }

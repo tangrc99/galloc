@@ -25,3 +25,11 @@ func Malloc(n int) []byte {
 func Free(bytes []byte) {
 	fl.deallocate(addr(unsafe.Pointer(&bytes[0])))
 }
+
+func ToAddr(ptr *any) uintptr {
+	return uintptr(unsafe.Pointer(ptr))
+}
+
+func ToPtr[T any](ptr uintptr) *T {
+	return (*T)(unsafe.Pointer(ptr))
+}
