@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"golang.org/x/sys/unix"
 	"syscall"
-	"unsafe"
 )
 
 func mmap(sz int) (error, Page) {
@@ -21,7 +20,6 @@ func mmap(sz int) (error, Page) {
 
 	return nil, Page{
 		dataRef: b,
-		data:    (*[maxMapSize]byte)(unsafe.Pointer(&b[0])),
 		size:    sz,
 	}
 }

@@ -16,7 +16,7 @@ const (
 	// maxAllocPages 是常驻的最大页数
 	maxAllocPages = 128
 	// startupPages 是初始化时分配的页数
-	startupPages = 32
+	startupPages = 0
 	// allocStep 是最小分配单元
 	allocStep = uint64(0x20000) // 128 kb
 )
@@ -30,7 +30,7 @@ type freelist struct {
 	forwardMap  map[addr]uint64    // 正向查找
 	backwardMap map[addr]uint64    // 反向查找
 	pages       map[addr]Page      // 从系统中分配的
-	allocs      map[addr]struct{}  // 分配给用户的内存
+	//	allocs map[addr]struct{} // 分配给用户的内存
 }
 
 var fl *freelist
@@ -41,9 +41,17 @@ func init() {
 	fl.forwardMap = make(map[addr]uint64)
 	fl.backwardMap = make(map[addr]uint64)
 	fl.pages = make(map[addr]Page)
-	fl.allocs = make(map[addr]struct{})
+	//fl.allocs = make(map[addr]struct{})
 
-	// TODO: startup memory pool
+	// startup memory pool
+	for i := 0; i < startupPages; i++ {
+		err, p := mmap(int(allocStep))
+		if err != nil {
+			panic(err)
+		}
+		base := addr(unsafe.Pointer(&p.dataRef[0]))
+		fl.addSpan(base, allocStep)
+	}
 }
 
 func (f *freelist) allocate(n int) addr {
@@ -53,9 +61,8 @@ func (f *freelist) allocate(n int) addr {
 		for span := range spans {
 			// 删除对应 page 的记录
 			f.delSpan(span, uint64(nt))
-			//	println("malloc proper size")
 			setPageHeader(span, nt)
-			f.allocs[span] = struct{}{}
+			//f.allocs[span] = struct{}{}
 			return span + addr(pageHeaderSize)
 		}
 	}
@@ -70,9 +77,8 @@ func (f *freelist) allocate(n int) addr {
 			remain := size - uint64(nt)
 			// add remain span
 			f.addSpan(span+addr(nt), remain)
-			//		println("malloc larger size")
 			setPageHeader(span, nt)
-			f.allocs[span] = struct{}{}
+			//f.allocs[span] = struct{}{}
 			return span + addr(pageHeaderSize)
 		}
 	}
@@ -85,19 +91,19 @@ func (f *freelist) allocate(n int) addr {
 	base := addr(unsafe.Pointer(&p.dataRef[0]))
 	f.pages[base] = p
 	f.addSpan(base+addr(nt), uint64(p.size-nt))
-	//	println("malloc new region")
 	setPageHeader(base, nt)
-	f.allocs[base] = struct{}{}
+	//	f.allocs[base] = struct{}{}
 	return base + addr(pageHeaderSize)
 }
 
 func (f *freelist) deallocate(ptr addr) {
 	header := getPageHeader(ptr)
 	start := addr(unsafe.Pointer(header))
-	if _, exist := f.allocs[start]; !exist {
-		panic(errInvalidPointer(ptr))
-	}
-	delete(f.allocs, start)
+	// TODO: Check user ptr
+	//if _, exist := f.allocs[start]; !exist {
+	//	panic(errInvalidPointer(ptr))
+	//}
+	//delete(f.allocs, start)
 	// merge existing spans
 	f.mergeSpans(start, header.size)
 
@@ -108,8 +114,10 @@ func (f *freelist) deallocate(ptr addr) {
 				if sz > allocStep {
 					f.addSpan(span+addr(allocStep), sz-allocStep)
 				}
-				println("munmap")
-				_ = munmap(pg.dataRef)
+				//println("munmap")
+				if err := munmap(pg.dataRef); err != nil {
+					panic(err)
+				}
 				delete(f.pages, span)
 				return
 			}
@@ -125,7 +133,7 @@ func (f *freelist) mergeSpans(span addr, size int) {
 	nextSize, mergeWithNext := f.forwardMap[next]
 	newStart := span
 	newSize := uint64(size)
-
+	//if mergeWithPrev {
 	if _, exist := f.pages[span]; mergeWithPrev && !exist {
 		//merge with previous span, when start is not a page
 		start := prev + 1 - addr(preSize)

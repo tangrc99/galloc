@@ -7,7 +7,6 @@ const pageHeaderSize = int(unsafe.Sizeof(pageHeader{}))
 
 type Page struct {
 	dataRef []byte
-	data    *[maxMapSize]byte
 	size    int
 }
 
