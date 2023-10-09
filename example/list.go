@@ -26,26 +26,26 @@ func (n *listNode) prevNode() *listNode {
 }
 
 type List struct {
-	sentinel *listNode
+	sentinel listNode
 	nNode    int
 }
 
 func NewList() *List {
-	sentinel := newListNode(0)
-	sentinel.next = uintptr(unsafe.Pointer(sentinel))
-	sentinel.prev = uintptr(unsafe.Pointer(sentinel))
-	return &List{
-		sentinel: sentinel,
+	l := &List{
+		sentinel: listNode{},
 		nNode:    0,
 	}
+	l.sentinel.next = uintptr(unsafe.Pointer(&l.sentinel))
+	l.sentinel.prev = uintptr(unsafe.Pointer(&l.sentinel))
+	return l
 }
 
 func (l *List) senti() uintptr {
-	return uintptr(unsafe.Pointer(l.sentinel))
+	return uintptr(unsafe.Pointer(&l.sentinel))
 }
 
 func (l *List) Empty() bool {
-	return l.sentinel.nextNode() == l.sentinel
+	return l.sentinel.nextNode() == &l.sentinel
 }
 
 func (l *List) Front() any {
@@ -68,7 +68,7 @@ func (l *List) PushBack(val any) {
 	old.next = uintptr(unsafe.Pointer(node))
 	l.sentinel.prev = uintptr(unsafe.Pointer(node))
 	node.prev = uintptr(unsafe.Pointer(old))
-	node.next = uintptr(unsafe.Pointer(l.sentinel))
+	node.next = uintptr(unsafe.Pointer(&l.sentinel))
 	l.nNode += 1
 }
 
@@ -78,7 +78,7 @@ func (l *List) PushFront(val any) {
 	old.prev = uintptr(unsafe.Pointer(node))
 	l.sentinel.next = uintptr(unsafe.Pointer(node))
 	node.next = uintptr(unsafe.Pointer(old))
-	node.prev = uintptr(unsafe.Pointer(l.sentinel))
+	node.prev = uintptr(unsafe.Pointer(&l.sentinel))
 	l.nNode += 1
 }
 
@@ -88,7 +88,7 @@ func (l *List) PopBack() any {
 	}
 	pop := l.sentinel.prevNode()
 	tail := pop.prevNode()
-	tail.next = uintptr(unsafe.Pointer(l.sentinel))
+	tail.next = uintptr(unsafe.Pointer(&l.sentinel))
 	l.sentinel.prev = uintptr(unsafe.Pointer(tail))
 	l.nNode -= 1
 	v := pop.Value
@@ -102,7 +102,7 @@ func (l *List) PopFront() any {
 	}
 	pop := l.sentinel.nextNode()
 	front := pop.nextNode()
-	front.prev = uintptr(unsafe.Pointer(l.sentinel))
+	front.prev = uintptr(unsafe.Pointer(&l.sentinel))
 	l.sentinel.next = uintptr(unsafe.Pointer(front))
 	l.nNode -= 1
 	v := pop.Value
