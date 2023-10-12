@@ -23,31 +23,31 @@ func TestAllocate(t *testing.T) {
 	type A struct {
 		Val int
 	}
-	ptr := fl.allocate(1024)
+	ptr := alloc.allocate(1024)
 	aptr := (*A)(unsafe.Pointer(ptr))
 	aptr.Val = 1
-	fl.deallocate(ptr)
+	alloc.deallocate(ptr)
 
-	ptr = fl.allocate(1024)
-	fl.deallocate(ptr)
+	ptr = alloc.allocate(1024)
+	alloc.deallocate(ptr)
 }
 
 func TestFree(t *testing.T) {
-	a1 := fl.allocate(int(float64(allocStep)*1.5) - pageHeaderSize)
-	a2 := fl.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
-	fl.deallocate(a1)
-	fl.deallocate(a2)
+	a1 := alloc.allocate(int(float64(allocStep)*1.5) - pageHeaderSize)
+	a2 := alloc.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
+	alloc.deallocate(a1)
+	alloc.deallocate(a2)
 }
 
 func TestFree2(t *testing.T) {
-	a1 := fl.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
-	a2 := fl.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
-	a3 := fl.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
-	a4 := fl.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
-	fl.deallocate(a2)
-	fl.deallocate(a3)
-	fl.deallocate(a4)
-	fl.deallocate(a1)
+	a1 := alloc.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
+	a2 := alloc.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
+	a3 := alloc.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
+	a4 := alloc.allocate(int(float64(allocStep)*0.5) - pageHeaderSize)
+	alloc.deallocate(a2)
+	alloc.deallocate(a3)
+	alloc.deallocate(a4)
+	alloc.deallocate(a1)
 }
 
 func TestBZero(t *testing.T) {
@@ -69,24 +69,6 @@ func BenchmarkMalloc(b *testing.B) {
 	for i := 0; i < nTest; i++ {
 		s := Malloc(1024)
 		Free(s)
-	}
-}
-
-var lk spinLock
-
-func BenchmarkMallocWithSpinLock(b *testing.B) {
-	s := Malloc(1024)
-	Free(s)
-
-	nTest := 10000
-	b.ResetTimer()
-	for i := 0; i < nTest; i++ {
-		lk.Lock()
-		s := Malloc(1024)
-		lk.Unlock()
-		lk.Lock()
-		Free(s)
-		lk.Unlock()
 	}
 }
 

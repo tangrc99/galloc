@@ -15,8 +15,10 @@ type pageHeader struct {
 	nShard int // shard 序号
 }
 
-func setPageHeader(ptr addr, n int) {
-	(*pageHeader)(unsafe.Pointer(ptr)).size = n
+func setPageHeader(ptr addr, n int, nShard int) {
+	header := (*pageHeader)(unsafe.Pointer(ptr))
+	header.size = n
+	header.nShard = nShard
 }
 
 func getPageHeader(ptr addr) *pageHeader {

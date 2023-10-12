@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/rand"
+	"runtime"
 	"unsafe"
 )
 
@@ -18,7 +20,7 @@ const (
 	// maxAllocPages 是常驻的最大页数
 	maxAllocPages = 128
 	// startupPages 是初始化时分配的页数
-	startupPages = 0
+	startupPages = 1
 )
 
 func errInvalidPointer(ptr addr) error {
@@ -26,43 +28,27 @@ func errInvalidPointer(ptr addr) error {
 }
 
 type freelist struct {
+	nShard      int
 	freeMap     map[uint64]spanSet // 长度 - 地址集合
 	forwardMap  map[addr]uint64    // 正向查找
 	backwardMap map[addr]uint64    // 反向查找
 	pages       map[addr]Page      // 从系统中分配的
-	allocs      map[addr]struct{}  // 分配给用户的内存
-}
-
-var fl *freelist
-
-func init() {
-	fl = new(freelist)
-	fl.freeMap = make(map[uint64]spanSet)
-	fl.forwardMap = make(map[addr]uint64)
-	fl.backwardMap = make(map[addr]uint64)
-	fl.pages = make(map[addr]Page)
-	fl.allocs = make(map[addr]struct{})
-
-	// startup memory pool
-	for i := 0; i < startupPages; i++ {
-		err, p := mmap(int(allocStep))
-		if err != nil {
-			panic(err)
-		}
-		base := addr(unsafe.Pointer(&p.dataRef[0]))
-		fl.addSpan(base, allocStep)
-	}
+	allocMap    map[addr]struct{}  // 分配给用户的内存
+	lk          spinLock
 }
 
 func (f *freelist) allocate(n int) addr {
+	// TODO: 修改内存对齐策略
 	nt := pow2upper(n + pageHeaderSize)
+	f.lk.Lock()
 	// 先寻找是否有对应大小的 page
 	if spans, ok := f.freeMap[uint64(nt)]; ok {
 		for span := range spans {
 			// 删除对应 page 的记录
 			f.delSpan(span, uint64(nt))
-			setPageHeader(span, nt)
-			f.allocs[span] = struct{}{}
+			f.allocMap[span] = struct{}{}
+			f.lk.Unlock()
+			setPageHeader(span, nt, f.nShard)
 			return span + addr(pageHeaderSize)
 		}
 	}
@@ -77,8 +63,9 @@ func (f *freelist) allocate(n int) addr {
 			remain := size - uint64(nt)
 			// add remain span
 			f.addSpan(span+addr(nt), remain)
-			setPageHeader(span, nt)
-			f.allocs[span] = struct{}{}
+			f.allocMap[span] = struct{}{}
+			f.lk.Unlock()
+			setPageHeader(span, nt, f.nShard)
 			return span + addr(pageHeaderSize)
 		}
 	}
@@ -91,21 +78,23 @@ func (f *freelist) allocate(n int) addr {
 	base := addr(unsafe.Pointer(&p.dataRef[0]))
 	f.pages[base] = p
 	f.addSpan(base+addr(nt), uint64(p.size-nt))
-	setPageHeader(base, nt)
-	f.allocs[base] = struct{}{}
+	f.allocMap[base] = struct{}{}
+	f.lk.Unlock()
+	setPageHeader(base, nt, f.nShard)
 	return base + addr(pageHeaderSize)
 }
 
 func (f *freelist) deallocate(ptr addr) {
 	header := getPageHeader(ptr)
 	start := addr(unsafe.Pointer(header))
-	if _, exist := f.allocs[start]; !exist {
+	f.lk.Lock()
+	if _, exist := f.allocMap[start]; !exist {
 		panic(errInvalidPointer(ptr))
 	}
-	delete(f.allocs, start)
+	delete(f.allocMap, start)
 	// merge existing spans
 	f.mergeSpans(start, header.size)
-
+	// release pages if needed
 	if len(f.pages) > maxAllocPages {
 		for span, pg := range f.pages {
 			if sz := f.forwardMap[span]; sz >= uint64(pg.size) {
@@ -113,15 +102,17 @@ func (f *freelist) deallocate(ptr addr) {
 				if sz > allocStep {
 					f.addSpan(span+addr(allocStep), sz-allocStep)
 				}
+				delete(f.pages, span)
+				f.lk.Unlock()
 				//println("munmap")
 				if err := munmap(pg.dataRef); err != nil {
 					panic(err)
 				}
-				delete(f.pages, span)
 				return
 			}
 		}
 	}
+	f.lk.Unlock()
 }
 
 func (f *freelist) mergeSpans(span addr, size int) {
@@ -166,5 +157,44 @@ func (f *freelist) delSpan(start addr, size uint64) {
 	delete(f.freeMap[size], start)
 	if len(f.freeMap[size]) == 0 {
 		delete(f.freeMap, size)
+	}
+}
+
+type allocator []*freelist
+
+var alloc allocator
+
+func (a *allocator) allocate(n int) addr {
+	nShard := rand.Intn(len(alloc))
+	fl := alloc[nShard]
+	return fl.allocate(n)
+}
+
+func (a *allocator) deallocate(ptr addr) {
+	nShard := getPageHeader(ptr).nShard
+	fl := alloc[nShard]
+	fl.deallocate(ptr)
+}
+
+func init() {
+	alloc = make([]*freelist, runtime.NumCPU())
+
+	for i := range alloc {
+		alloc[i] = new(freelist)
+		alloc[i].freeMap = make(map[uint64]spanSet)
+		alloc[i].forwardMap = make(map[addr]uint64)
+		alloc[i].backwardMap = make(map[addr]uint64)
+		alloc[i].pages = make(map[addr]Page)
+		alloc[i].allocMap = make(map[addr]struct{})
+		alloc[i].nShard = i
+		// startup memory pool
+		for j := 0; j < startupPages; j++ {
+			err, p := mmap(int(allocStep))
+			if err != nil {
+				panic(err)
+			}
+			base := addr(unsafe.Pointer(&p.dataRef[0]))
+			alloc[i].addSpan(base, allocStep)
+		}
 	}
 }

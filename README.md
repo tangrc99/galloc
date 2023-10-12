@@ -25,7 +25,7 @@ galloc.Free(node1)
 
 以指针形式保留从`galloc`中获取的内存并不能够规避 Golang 的 GC，因此仅仅用该接口替代`new()`接口并不能改善 GC。只有使用`uintptr`这一数据形式来保留`galloc`中分配出的内存地址才能够起到减少 GC 的效果。
 
-## Performace
+## Performance
 
 简单测试了链表形式下`galloc`的分配速度以及 GC 改善效果，baseline 为 Golang 内存分配器。在完成 10 个 100000 节点链表的分配后，立刻进入 GC：
 
